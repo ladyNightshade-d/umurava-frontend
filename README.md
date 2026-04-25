@@ -324,3 +324,5 @@ For questions about this submission, please contact the team via the hackathon p
 
 **Built for Umurava AI Hackathon with ❤️**  
 **Tech Stack:** Next.js 16 + TypeScript + Redux Toolkit + Tailwind CSS + Gemini API
+#   u m u r a v a - f r o n t e n d  
+ 
