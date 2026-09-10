@@ -6,7 +6,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useAppDispatch, useAppSelector } from "@/src/store";
 import { fetchJobs, setSelectedJob } from "@/src/store/jobsSlice";
 import { fetchCandidates } from "@/src/store/candidatesSlice";
-import { fetchResults, screenCandidates as screenCandidatesAction, setSortBy, setBiasMode } from "@/src/store/resultsSlice";
+import { fetchResults, screenCandidates as screenCandidatesAction, setSortBy, setBiasMode, setWeights } from "@/src/store/resultsSlice";
 import DashboardLayout from "@/src/components/DashboardLayout";
 import ScoreRing from "@/src/components/ScoreRing";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
@@ -17,7 +17,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/src/components/ui/dialog";
-import { Loader2, Shield, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, Shield, Brain, AlertTriangle, CheckCircle2, MessageSquare, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 interface ScreeningResult {
@@ -75,9 +75,9 @@ const CandidateCard = ({ result, rank, biasMode, onSelect }: {
                             )}
                         </div>
                         <div className="grid grid-cols-3 gap-6 max-w-sm">
-                            <BreakdownBar label="Skills" value={Math.min(result.final_score, 100)} color="bg-blue-500" />
-                            <BreakdownBar label="Experience" value={Math.min(Math.round(result.final_score * 0.9), 100)} color="bg-green-500" />
-                            <BreakdownBar label="Culture" value={Math.min(Math.round(result.final_score * 0.85), 100)} color="bg-primary" />
+                            <BreakdownBar label="Skills" value={result.skill_score} color="bg-blue-500" />
+                            <BreakdownBar label="Experience" value={result.experience_score} color="bg-green-500" />
+                            <BreakdownBar label="Culture" value={result.culture_score} color="bg-primary" />
                         </div>
                         <div className="flex gap-1.5 flex-wrap">
                             {(result.skill_tags || []).slice(0, 4).map((tag) => (
@@ -114,9 +114,9 @@ const Results = () => {
     const searchParams = useSearchParams();
     const { jobs, selectedJobId } = useAppSelector((state) => state.jobs);
     const { candidates } = useAppSelector((state) => state.candidates);
-    const { results, screening, sortBy, biasMode } = useAppSelector((state) => state.results);
+    const { results, screening, sortBy, biasMode, weights } = useAppSelector((state) => state.results);
     const [selectedCandidate, setSelectedCandidate] = useState<ScreeningResult | null>(null);
-    const [weights, setWeights] = useState({ skills: 40, experience: 30, culture: 30 });
+    const [showWeights, setShowWeights] = useState(false);
 
     useEffect(() => {
         if (user) dispatch(fetchJobs(user.id));
@@ -154,6 +154,12 @@ const Results = () => {
         } catch (err: any) {
             toast.error(err || "Screening failed");
         }
+    };
+
+    const totalWeight = weights.skills + weights.experience + weights.culture;
+
+    const handleWeightChange = (key: "skills" | "experience" | "culture", value: number) => {
+        dispatch(setWeights({ ...weights, [key]: value }));
     };
 
     const sortedResults = useMemo(() => {
@@ -202,6 +208,13 @@ const Results = () => {
                         {screening ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Brain className="h-4 w-4 mr-2" />}
                         {screening ? "Screening..." : "Screen with AI"}
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowWeights(!showWeights)} className="gap-2">
+                        <SlidersHorizontal className="h-4 w-4" />
+                        Scoring Weights
+                        {totalWeight !== 100 && (
+                            <Badge variant="destructive" className="text-xs ml-1">≠ 100%</Badge>
+                        )}
+                    </Button>
                     {results.length > 0 && (
                         <div className="flex gap-2">
                             <Button variant={sortBy === "score" ? "default" : "outline"} size="sm" onClick={() => dispatch(setSortBy("score"))}>Sort by Score</Button>
@@ -209,6 +222,43 @@ const Results = () => {
                         </div>
                     )}
                 </div>
+
+                {/* Weight sliders panel */}
+                {showWeights && (
+                    <Card className="border-primary/20 bg-muted/30">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                                Scoring Weights
+                                <span className={`ml-auto text-xs font-normal ${totalWeight !== 100 ? "text-destructive" : "text-green-600"}`}>
+                                    Total: {totalWeight}% {totalWeight !== 100 ? "(should equal 100%)" : "✓"}
+                                </span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-0">
+                            {[
+                                { key: "skills" as const, label: "Skills Match", color: "text-blue-500" },
+                                { key: "experience" as const, label: "Experience", color: "text-green-500" },
+                                { key: "culture" as const, label: "Culture Fit", color: "text-primary" },
+                            ].map(({ key, label, color }) => (
+                                <div key={key} className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <Label className={`text-sm font-medium ${color}`}>{label}</Label>
+                                        <span className="text-sm font-bold text-foreground">{weights[key]}%</span>
+                                    </div>
+                                    <Slider
+                                        value={[weights[key]]}
+                                        onValueChange={([val]) => handleWeightChange(key, val)}
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                        className="w-full"
+                                    />
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {sortedResults.length > 0 ? (
                     <div className="space-y-4">
@@ -237,6 +287,8 @@ const Results = () => {
                                         </Badge>
                                     </DialogTitle>
                                 </DialogHeader>
+
+                                {/* Score overview */}
                                 <div className="flex items-center gap-6 p-5 rounded-lg bg-muted/30 border border-border/50">
                                     <ScoreRing score={selectedCandidate.final_score} size={96} strokeWidth={6} />
                                     <div className="flex-1 space-y-1">
@@ -244,6 +296,15 @@ const Results = () => {
                                         <p className="text-xs text-muted-foreground">{selectedCandidate.recommendation}</p>
                                     </div>
                                 </div>
+
+                                {/* Sub-score breakdown */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <BreakdownBar label="Skills" value={selectedCandidate.skill_score} color="bg-blue-500" />
+                                    <BreakdownBar label="Experience" value={selectedCandidate.experience_score} color="bg-green-500" />
+                                    <BreakdownBar label="Culture" value={selectedCandidate.culture_score} color="bg-primary" />
+                                </div>
+
+                                {/* Strengths */}
                                 <div>
                                     <h4 className="font-semibold mb-2 text-sm flex items-center gap-2 text-foreground">
                                         <CheckCircle2 className="h-4 w-4 text-green-500" />Strengths
@@ -256,6 +317,8 @@ const Results = () => {
                                         ))}
                                     </ul>
                                 </div>
+
+                                {/* Gaps */}
                                 <div>
                                     <h4 className="font-semibold mb-2 text-sm flex items-center gap-2 text-foreground">
                                         <AlertTriangle className="h-4 w-4 text-yellow-500" />Gaps
@@ -268,6 +331,22 @@ const Results = () => {
                                         ))}
                                     </ul>
                                 </div>
+
+                                {/* Interview questions */}
+                                {(selectedCandidate.interview_questions || []).length > 0 && (
+                                    <div>
+                                        <h4 className="font-semibold mb-2 text-sm flex items-center gap-2 text-foreground">
+                                            <MessageSquare className="h-4 w-4 text-primary" />Suggested Interview Questions
+                                        </h4>
+                                        <ol className="space-y-2">
+                                            {selectedCandidate.interview_questions.map((q, i) => (
+                                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                                    <span className="font-semibold text-primary shrink-0">{i + 1}.</span> {q}
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    </div>
+                                )}
                             </>
                         )}
                     </DialogContent>

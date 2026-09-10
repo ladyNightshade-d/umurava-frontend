@@ -9,6 +9,7 @@ import { Label } from "@/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Brain, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/src/lib/apiFetch";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -33,10 +34,10 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const res = await fetch(`${BASE_URL}/auth/register`, {
+        const res = await apiFetch(`${BASE_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, email, password, company })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Registration failed');
@@ -44,7 +45,7 @@ const Auth = () => {
         toast.success("Account created!");
         router.push("/dashboard");
       } else {
-        const res = await fetch(`${BASE_URL}/auth/login`, {
+        const res = await apiFetch(`${BASE_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })

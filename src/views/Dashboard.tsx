@@ -8,6 +8,7 @@ import { fetchJobs, deleteJob } from "@/src/store/jobsSlice";
 import DashboardLayout from "@/src/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Briefcase, Users, BarChart3, Plus, Upload, Eye,
   CheckCircle2, Clock, ArrowUpRight, Trash2,
@@ -62,6 +63,7 @@ const Dashboard = () => {
   const dispatch = useAppDispatch();
   const { jobs } = useAppSelector((state) => state.jobs);
   const [stats, setStats] = useState({ jobs: 0, candidates: 0, screenings: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
@@ -71,9 +73,11 @@ const Dashboard = () => {
   useEffect(() => {
     if (!token || jobs.length === 0) {
       setStats(s => ({ ...s, jobs: jobs.length }));
+      setStatsLoading(false);
       return;
     }
     const loadStats = async () => {
+      setStatsLoading(true);
       try {
         const jobIds = jobs.map((j: any) => j._id);
         let totalCandidates = 0;
@@ -89,6 +93,8 @@ const Dashboard = () => {
         setStats({ jobs: jobs.length, candidates: totalCandidates, screenings: totalScreenings });
       } catch (err) {
         setStats(s => ({ ...s, jobs: jobs.length }));
+      } finally {
+        setStatsLoading(false);
       }
     };
     loadStats();
@@ -135,11 +141,20 @@ const Dashboard = () => {
                       <s.icon className="h-4.5 w-4.5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold leading-none text-foreground">{s.value}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+                      {statsLoading ? (
+                        <>
+                          <Skeleton className="h-7 w-10 mb-1" />
+                          <Skeleton className="h-3 w-24" />
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-2xl font-bold leading-none text-foreground">{s.value}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <Sparkline data={s.spark} />
+                  {statsLoading ? <Skeleton className="h-7 w-20" /> : <Sparkline data={s.spark} />}
                 </CardContent>
               </Card>
             ))}
