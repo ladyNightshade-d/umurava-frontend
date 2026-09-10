@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { supabase } from "@/src/lib/supabase";
 import CandidateLayout from "@/src/components/CandidateLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
@@ -14,8 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Briefcase, Search, MapPin, Clock, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const JobBoard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [jobs, setJobs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [applyingTo, setApplyingTo] = useState<any | null>(null);
@@ -23,37 +24,64 @@ const JobBoard = () => {
   const [resumeText, setResumeText] = useState("");
   const [skills, setSkills] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !token) return;
     const load = async () => {
-      const [jobsRes, appsRes] = await Promise.all([
-        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
-        supabase.from("applications").select("job_id").eq("user_id", user.id),
-      ]);
-      setJobs(jobsRes.data ?? []);
-      setAppliedJobs(new Set((appsRes.data ?? []).map((a: any) => a.job_id)));
+      try {
+        const [jobsRes, appsRes] = await Promise.all([
+          fetch(`${BASE_URL}/jobs/public`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${BASE_URL}/candidates/applications`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        
+        if (jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          setJobs(jobsData);
+        }
+        
+        if (appsRes.ok) {
+          const appsData = await appsRes.json();
+          setAppliedJobs(new Set(appsData.map((a: any) => a.job_id || a.jobId)));
+        }
+      } catch (err) {
+        console.error("Failed to load jobs:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
-  }, [user]);
+  }, [user, token]);
 
   const filtered = jobs.filter((j) => {
     const q = search.toLowerCase();
-    return !q || j.title.toLowerCase().includes(q) || j.department.toLowerCase().includes(q) || (j.required_skills || []).some((s: string) => s.toLowerCase().includes(q));
+    return !q || j.title.toLowerCase().includes(q) || j.department.toLowerCase().includes(q) || (j.required_skills || j.skills || []).some((s: string) => s.toLowerCase().includes(q));
   });
 
   const handleApply = async () => {
-    if (!user || !applyingTo) return;
+    if (!user || !token || !applyingTo) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("applications").insert({
-        user_id: user.id,
-        job_id: applyingTo.id,
-        resume_text: resumeText,
-        skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+      const res = await fetch(`${BASE_URL}/candidates/applications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          job_id: applyingTo.id || applyingTo._id,
+          resume_text: resumeText,
+          skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+        }),
       });
-      if (error) throw error;
-      setAppliedJobs((prev) => new Set(prev).add(applyingTo.id));
+      
+      if (!res.ok) throw new Error("Failed to submit application");
+      
+      setAppliedJobs((prev) => new Set(prev).add(applyingTo.id || applyingTo._id));
       toast.success("Application submitted! You'll receive AI feedback once reviewed.");
       setApplyingTo(null);
       setResumeText("");
@@ -64,6 +92,16 @@ const JobBoard = () => {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <CandidateLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+      </CandidateLayout>
+    );
+  }
 
   return (
     <CandidateLayout>
@@ -87,43 +125,45 @@ const JobBoard = () => {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {filtered.map((job) => (
-              <Card key={job.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                        <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{job.department}</span>
-                        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{job.experience_level}</span>
+            {filtered.map((job) => {
+              const jobId = job.id || job._id;
+              return (
+                <Card key={jobId} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                          <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{job.department}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{job.experience_level || job.experience}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3 line-clamp-2">{job.description}</p>
+                        <div className="flex gap-1.5 mt-3 flex-wrap">
+                          {(job.required_skills || job.skills || []).map((skill: string) => (
+                            <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-3 line-clamp-2">{job.description}</p>
-                      <div className="flex gap-1.5 mt-3 flex-wrap">
-                        {(job.required_skills || []).map((skill: string) => (
-                          <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
-                        ))}
+                      <div className="shrink-0">
+                        {appliedJobs.has(jobId) ? (
+                          <Button disabled variant="outline" className="gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-accent" />
+                            Applied
+                          </Button>
+                        ) : (
+                          <Button onClick={() => setApplyingTo(job)} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                            Apply Now
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <div className="shrink-0">
-                      {appliedJobs.has(job.id) ? (
-                        <Button disabled variant="outline" className="gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-accent" />
-                          Applied
-                        </Button>
-                      ) : (
-                        <Button onClick={() => setApplyingTo(job)} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                          Apply Now
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
-        {/* Apply Dialog */}
         <Dialog open={!!applyingTo} onOpenChange={() => setApplyingTo(null)}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
@@ -142,7 +182,7 @@ const JobBoard = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setApplyingTo(null)}>Cancel</Button>
               <Button onClick={handleApply} disabled={submitting || !resumeText.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Application
               </Button>
             </DialogFooter>

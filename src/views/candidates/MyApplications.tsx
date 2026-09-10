@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { supabase } from "@/src/lib/supabase";
 import CandidateLayout from "@/src/components/CandidateLayout";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { FileText, Clock, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Eye, Loader2 } from "lucide-react";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   pending: { label: "Under Review", color: "bg-warning/10 text-warning border-warning/20", icon: Clock },
@@ -18,18 +19,41 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 const MyApplications = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [applications, setApplications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("applications")
-      .select("*, jobs(*)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setApplications(data ?? []));
-  }, [user]);
+    if (!user || !token) return;
+    
+    const loadApplications = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/candidates/applications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setApplications(data);
+        }
+      } catch (err) {
+        console.error("Failed to load applications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadApplications();
+  }, [user, token]);
+
+  if (loading) {
+    return (
+      <CandidateLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+      </CandidateLayout>
+    );
+  }
 
   return (
     <CandidateLayout>
@@ -54,13 +78,14 @@ const MyApplications = () => {
             {applications.map((app) => {
               const status = statusConfig[app.status] || statusConfig.pending;
               const StatusIcon = status.icon;
+              const job = app.job || app.jobs;
               return (
-                <Card key={app.id} className="hover:shadow-md transition-shadow">
+                <Card key={app.id || app._id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground">{app.jobs?.title || "Unknown Job"}</h3>
-                      <p className="text-sm text-muted-foreground">{app.jobs?.department} · {app.jobs?.experience_level}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Applied {new Date(app.created_at).toLocaleDateString()}</p>
+                      <h3 className="font-semibold text-foreground">{job?.title || "Unknown Job"}</h3>
+                      <p className="text-sm text-muted-foreground">{job?.department} · {job?.experience_level || job?.experience}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Applied {new Date(app.created_at || app.createdAt).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant="outline" className={`gap-1 ${status.color}`}>
@@ -69,7 +94,7 @@ const MyApplications = () => {
                       </Badge>
                       {(app.status === "reviewed" || app.status === "accepted" || app.status === "rejected") && (
                         <Button size="sm" variant="outline" asChild>
-                          <Link href={`/candidate/feedback?app=${app.id}`}>View Feedback</Link>
+                          <Link href={`/candidate/feedback?app=${app.id || app._id}`}>View Feedback</Link>
                         </Button>
                       )}
                     </div>

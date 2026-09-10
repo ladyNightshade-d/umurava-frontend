@@ -1,18 +1,20 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { supabase } from "@/src/lib/supabase";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const getToken = () => typeof window !== "undefined" ? localStorage.getItem('token') : null;
 
 export interface ScreeningResult {
     id: string;
+    _id: string;
     candidate_id: string;
     job_id: string;
-    user_id: string;
     final_score: number;
     strengths: string[];
     gaps: string[];
     culture_fit: string;
     skill_tags: string[];
     interview_questions: string[];
-    created_at: string;
+    recommendation: string;
     candidate?: any;
 }
 
@@ -34,29 +36,36 @@ const initialState: ResultsState = {
     biasMode: false,
 };
 
-// Async thunks
+const getCultureFit = (score: number) => {
+    if (score >= 70) return 'High';
+    if (score >= 50) return 'Medium';
+    return 'Low';
+};
+
 export const fetchResults = createAsyncThunk(
     "results/fetchResults",
-    async (
-        { userId, jobId, candidates }: { userId: string; jobId: string; candidates: any[] },
-        { rejectWithValue }
-    ) => {
+    async ({ jobId }: { userId: string; jobId: string; candidates: any[] }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from("screening_results")
-                .select("*")
-                .eq("user_id", userId)
-                .eq("job_id", jobId);
+            const res = await fetch(`${BASE_URL}/jobs/${jobId}/applicants/shortlist`, {
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
 
-            if (error) throw error;
-
-            // Merge with candidate data
-            const merged = (data || []).map((result: any) => ({
-                ...result,
-                candidate: candidates.find((c) => c.id === result.candidate_id),
-            }));
-
-            return merged as ScreeningResult[];
+            return (data.data || []).map((a: any) => ({
+                id: a._id,
+                _id: a._id,
+                candidate_id: a._id,
+                job_id: jobId,
+                final_score: a.score,
+                strengths: a.strengths || [],
+                gaps: a.gaps || [],
+                culture_fit: getCultureFit(a.score),
+                skill_tags: a.skills || [],
+                interview_questions: [],
+                recommendation: a.recommendation,
+                candidate: { name: a.name, email: a.email }
+            })) as ScreeningResult[];
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -65,79 +74,34 @@ export const fetchResults = createAsyncThunk(
 
 export const screenCandidates = createAsyncThunk(
     "results/screenCandidates",
-    async (
-        {
-            jobId,
-            userId,
-            job,
-            candidates,
-            weights,
-        }: {
-            jobId: string;
-            userId: string;
-            job: any;
-            candidates: any[];
-            weights: { skills: number; experience: number; culture: number };
-        },
-        { rejectWithValue }
-    ) => {
+    async ({ jobId }: { jobId: string; userId: string; job: any; candidates: any[]; weights: any }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase.functions.invoke("screen-candidates", {
-                body: {
-                    job_id: jobId,
-                    job_description: job.description,
-                    required_skills: job.required_skills,
-                    experience_level: job.experience_level,
-                    top_performer_profile: job.top_performer_profile,
-                    weight_skills: weights.skills,
-                    weight_experience: weights.experience,
-                    weight_culture: weights.culture,
-                    candidates: candidates.map((c) => ({
-                        id: c.id,
-                        name: c.name,
-                        resume_text: c.resume_text,
-                        skills: c.skills,
-                    })),
-                },
+            const res = await fetch(`${BASE_URL}/jobs/${jobId}/applicants/screen`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${getToken()}` }
             });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
 
-            if (error) throw error;
-            if (data?.error) throw new Error(data.error);
+            const shortlistRes = await fetch(`${BASE_URL}/jobs/${jobId}/applicants/shortlist`, {
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            const shortlistData = await shortlistRes.json();
 
-            const resultsToInsert = (data.results || []).map((r: any) => ({
-                candidate_id: r.candidate_id,
+            return (shortlistData.data || []).map((a: any) => ({
+                id: a._id,
+                _id: a._id,
+                candidate_id: a._id,
                 job_id: jobId,
-                user_id: userId,
-                final_score: r.final_score,
-                strengths: r.strengths,
-                gaps: r.gaps,
-                culture_fit: r.culture_fit,
-                skill_tags: r.skill_tags,
-                interview_questions: r.interview_questions,
-            }));
-
-            // Delete old results
-            await supabase
-                .from("screening_results")
-                .delete()
-                .eq("user_id", userId)
-                .eq("job_id", jobId);
-
-            // Insert new results
-            const { data: insertedData, error: insertError } = await supabase
-                .from("screening_results")
-                .insert(resultsToInsert)
-                .select();
-
-            if (insertError) throw insertError;
-
-            // Merge with candidate data
-            const merged = (insertedData || []).map((result: any) => ({
-                ...result,
-                candidate: candidates.find((c) => c.id === result.candidate_id),
-            }));
-
-            return merged as ScreeningResult[];
+                final_score: a.score,
+                strengths: a.strengths || [],
+                gaps: a.gaps || [],
+                culture_fit: getCultureFit(a.score),
+                skill_tags: a.skills || [],
+                interview_questions: [],
+                recommendation: a.recommendation,
+                candidate: { name: a.name, email: a.email }
+            })) as ScreeningResult[];
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -148,47 +112,19 @@ const resultsSlice = createSlice({
     name: "results",
     initialState,
     reducers: {
-        clearResultsError: (state) => {
-            state.error = null;
-        },
-        setSortBy: (state, action: PayloadAction<"score" | "culture">) => {
-            state.sortBy = action.payload;
-        },
-        setBiasMode: (state, action: PayloadAction<boolean>) => {
-            state.biasMode = action.payload;
-        },
-        clearResults: (state) => {
-            state.results = [];
-        },
+        clearResultsError: (state) => { state.error = null; },
+        setSortBy: (state, action: PayloadAction<"score" | "culture">) => { state.sortBy = action.payload; },
+        setBiasMode: (state, action: PayloadAction<boolean>) => { state.biasMode = action.payload; },
+        clearResults: (state) => { state.results = []; },
     },
     extraReducers: (builder) => {
-        // Fetch results
-        builder.addCase(fetchResults.pending, (state) => {
-            state.loading = true;
-            state.error = null;
-        });
-        builder.addCase(fetchResults.fulfilled, (state, action) => {
-            state.loading = false;
-            state.results = action.payload;
-        });
-        builder.addCase(fetchResults.rejected, (state, action) => {
-            state.loading = false;
-            state.error = action.payload as string;
-        });
+        builder.addCase(fetchResults.pending, (state) => { state.loading = true; state.error = null; });
+        builder.addCase(fetchResults.fulfilled, (state, action) => { state.loading = false; state.results = action.payload; });
+        builder.addCase(fetchResults.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-        // Screen candidates
-        builder.addCase(screenCandidates.pending, (state) => {
-            state.screening = true;
-            state.error = null;
-        });
-        builder.addCase(screenCandidates.fulfilled, (state, action) => {
-            state.screening = false;
-            state.results = action.payload;
-        });
-        builder.addCase(screenCandidates.rejected, (state, action) => {
-            state.screening = false;
-            state.error = action.payload as string;
-        });
+        builder.addCase(screenCandidates.pending, (state) => { state.screening = true; state.error = null; });
+        builder.addCase(screenCandidates.fulfilled, (state, action) => { state.screening = false; state.results = action.payload; });
+        builder.addCase(screenCandidates.rejected, (state, action) => { state.screening = false; state.error = action.payload as string; });
     },
 });
 

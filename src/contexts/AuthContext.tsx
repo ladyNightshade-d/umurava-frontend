@@ -1,67 +1,70 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/src/lib/supabase";
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: "recruiter" | "candidate";
+}
 
 interface AuthContextType {
-  session: Session | null;
   user: User | null;
+  token: string | null;
   loading: boolean;
   role: string | null;
-  signOut: () => Promise<void>;
+  login: (token: string, user: User) => void;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
   user: null,
+  token: null,
   loading: true,
   role: null,
-  signOut: async () => {},
+  login: () => {},
+  signOut: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        // Fetch role from profiles
-        supabase.from("profiles").select("role").eq("user_id", session.user.id).single().then(({ data }) => {
-          setRole(data?.role || "recruiter");
-          setLoading(false);
-        });
-      } else {
-        setRole(null);
-        setLoading(false);
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        supabase.from("profiles").select("role").eq("user_id", session.user.id).single().then(({ data }) => {
-          setRole(data?.role || "recruiter");
-          setLoading(false);
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const storedToken = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("user");
+    if (storedToken && storedUser) {
+      const parsed: User = JSON.parse(storedUser);
+      setToken(storedToken);
+      setUser(parsed);
+      setRole(parsed.role ?? "recruiter");
+    }
+    setLoading(false);
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const login = (token: string, user: User) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+    setToken(token);
+    setUser(user);
+    setRole(user.role ?? "recruiter");
+  };
+
+  const signOut = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    setToken(null);
     setRole(null);
+    const isCandidate = role === "candidate";
+    window.location.href = isCandidate ? "/candidate/auth" : "/auth";
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, role, signOut }}>
+    <AuthContext.Provider value={{ user, token, loading, role, login, signOut }}>
       {children}
     </AuthContext.Provider>
   );

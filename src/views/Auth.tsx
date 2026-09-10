@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { supabase } from "@/src/lib/supabase";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Brain, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const Auth = () => {
   const searchParams = useSearchParams();
@@ -20,7 +21,7 @@ const Auth = () => {
   const [company, setCompany] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, login } = useAuth();
 
   useEffect(() => {
     if (user) router.push("/dashboard");
@@ -32,19 +33,26 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name, company },
-            emailRedirectTo: typeof window !== "undefined" ? window.location.origin : "",
-          },
+        const res = await fetch(`${BASE_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
         });
-        if (error) throw error;
-        toast.success("Account created! Check your email to confirm, or sign in directly.");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Registration failed');
+        login(data.token, data.user);
+        toast.success("Account created!");
+        router.push("/dashboard");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const res = await fetch(`${BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Login failed');
+        login(data.token, data.user);
+        toast.success("Welcome back!");
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -92,7 +100,7 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" minLength={6} required />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSignUp ? "Create Account" : "Sign In"}
             </Button>
           </form>

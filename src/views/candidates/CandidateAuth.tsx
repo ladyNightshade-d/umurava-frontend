@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { supabase } from "@/src/lib/supabase";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Brain, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const CandidateAuth = () => {
   const searchParams = useSearchParams();
@@ -19,38 +20,40 @@ const CandidateAuth = () => {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, role, login } = useAuth();
 
   useEffect(() => {
     if (user) {
-      // Check role and redirect accordingly
-      supabase.from("profiles").select("role").eq("user_id", user.id).single().then(({ data }) => {
-        if (data?.role === "candidate") router.push("/candidate/jobs");
-        else router.push("/dashboard");
-      });
+      router.push(role === "candidate" ? "/candidate/jobs" : "/dashboard");
     }
-  }, [user, router]);
+  }, [user, role, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name, role: "candidate" },
-            emailRedirectTo: typeof window !== "undefined" ? window.location.origin + "/candidate/jobs" : "/candidate/jobs",
-          },
+        const res = await fetch(`${BASE_URL}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, role: "candidate" }),
         });
-        if (error) throw error;
-
-        toast.success("Account created! You can sign in now.");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Registration failed");
+        login(data.token, { ...data.user, role: "candidate" });
+        toast.success("Account created!");
+        router.push("/candidate/jobs");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const res = await fetch(`${BASE_URL}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Login failed");
+        login(data.token, { ...data.user, role: data.user.role ?? "candidate" });
+        toast.success("Welcome back!");
+        router.push("/candidate/jobs");
       }
     } catch (error: any) {
       toast.error(error.message);
@@ -91,7 +94,7 @@ const CandidateAuth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" minLength={6} required />
             </div>
             <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSignUp ? "Create Account" : "Sign In"}
             </Button>
           </form>
@@ -102,7 +105,7 @@ const CandidateAuth = () => {
             </button>
           </div>
           <div className="mt-3 text-center">
-            <a href="/" className="text-xs text-muted-foreground hover:underline">Are you a recruiter? →</a>
+            <a href="/auth" className="text-xs text-muted-foreground hover:underline">Are you a recruiter? →</a>
           </div>
         </CardContent>
       </Card>

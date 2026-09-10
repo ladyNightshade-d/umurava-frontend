@@ -58,17 +58,13 @@ const CreateJob = () => {
     if (!user) return;
     try {
       await dispatch(createJob({
-        user_id: user.id,
-        title: form.title,
-        department: form.department,
-        description: form.description,
-        required_skills: form.required_skills.split(",").map((s) => s.trim()).filter(Boolean),
-        experience_level: form.experience_level,
-        top_performer_profile: form.top_performer_profile,
-        weight_skills: form.weight_skills,
-        weight_experience: form.weight_experience,
-        weight_culture: form.weight_culture,
-      })).unwrap();
+  title: form.title,
+  department: form.department,
+  description: form.description,
+  skills: form.required_skills.split(",").map((s) => s.trim()).filter(Boolean),
+  experience: form.experience_level,
+  education: "Not specified",
+})).unwrap();
       toast.success("Job created!");
       router.push("/dashboard");
     } catch (err: any) {

@@ -1,19 +1,20 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { supabase } from "@/src/lib/supabase";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+const getToken = () => typeof window !== "undefined" ? localStorage.getItem('token') : null;
 
 export interface Job {
+    _id: string;
     id: string;
-    user_id: string;
     title: string;
     department: string;
     description: string;
-    required_skills: string[];
-    experience_level: string;
-    top_performer_profile: string;
-    weight_skills: number;
-    weight_experience: number;
-    weight_culture: number;
-    created_at: string;
+    skills: string[];
+    experience: string;
+    education: string;
+    createdBy: string;
+    createdAt: string;
 }
 
 interface JobsState {
@@ -30,18 +31,15 @@ const initialState: JobsState = {
     error: null,
 };
 
-// Async thunks
 export const fetchJobs = createAsyncThunk(
     "jobs/fetchJobs",
-    async (userId: string, { rejectWithValue }) => {
+    async (_userId: string, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from("jobs")
-                .select("*")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false });
-
-            if (error) throw error;
+            const res = await fetch(`${BASE_URL}/jobs`, {
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
             return data as Job[];
         } catch (error: any) {
             return rejectWithValue(error.message);
@@ -51,15 +49,18 @@ export const fetchJobs = createAsyncThunk(
 
 export const createJob = createAsyncThunk(
     "jobs/createJob",
-    async (jobData: Omit<Job, "id" | "created_at">, { rejectWithValue }) => {
+    async (jobData: any, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from("jobs")
-                .insert(jobData)
-                .select()
-                .single();
-
-            if (error) throw error;
+            const res = await fetch(`${BASE_URL}/jobs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${getToken()}`
+                },
+                body: JSON.stringify(jobData)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
             return data as Job;
         } catch (error: any) {
             return rejectWithValue(error.message);
@@ -69,21 +70,16 @@ export const createJob = createAsyncThunk(
 
 export const deleteJob = createAsyncThunk(
     "jobs/deleteJob",
-    async ({ jobId, userId }: { jobId: string; userId: string }, { rejectWithValue }) => {
+    async ({ jobId }: { jobId: string; userId: string }, { rejectWithValue }) => {
         try {
-            // Delete related data first
-            await Promise.all([
-                supabase.from("screening_results").delete().eq("job_id", jobId).eq("user_id", userId),
-                supabase.from("candidates").delete().eq("job_id", jobId).eq("user_id", userId),
-            ]);
-
-            const { error } = await supabase
-                .from("jobs")
-                .delete()
-                .eq("id", jobId)
-                .eq("user_id", userId);
-
-            if (error) throw error;
+            const res = await fetch(`${BASE_URL}/jobs/${jobId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message);
+            }
             return jobId;
         } catch (error: any) {
             return rejectWithValue(error.message);
@@ -103,55 +99,33 @@ const jobsSlice = createSlice({
         },
     },
     extraReducers: (builder) => {
-        // Fetch jobs
-        builder.addCase(fetchJobs.pending, (state) => {
-            state.loading = true;
-            state.error = null;
-        });
+        builder.addCase(fetchJobs.pending, (state) => { state.loading = true; state.error = null; });
         builder.addCase(fetchJobs.fulfilled, (state, action) => {
             state.loading = false;
             state.jobs = action.payload;
-            // Auto-select first job if none selected
             if (!state.selectedJobId && action.payload.length > 0) {
-                state.selectedJobId = action.payload[0].id;
+                state.selectedJobId = action.payload[0]._id;
             }
         });
-        builder.addCase(fetchJobs.rejected, (state, action) => {
-            state.loading = false;
-            state.error = action.payload as string;
-        });
+        builder.addCase(fetchJobs.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-        // Create job
-        builder.addCase(createJob.pending, (state) => {
-            state.loading = true;
-            state.error = null;
-        });
+        builder.addCase(createJob.pending, (state) => { state.loading = true; state.error = null; });
         builder.addCase(createJob.fulfilled, (state, action) => {
             state.loading = false;
             state.jobs.unshift(action.payload);
-            state.selectedJobId = action.payload.id;
+            state.selectedJobId = action.payload._id;
         });
-        builder.addCase(createJob.rejected, (state, action) => {
-            state.loading = false;
-            state.error = action.payload as string;
-        });
+        builder.addCase(createJob.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
 
-        // Delete job
-        builder.addCase(deleteJob.pending, (state) => {
-            state.loading = true;
-            state.error = null;
-        });
+        builder.addCase(deleteJob.pending, (state) => { state.loading = true; state.error = null; });
         builder.addCase(deleteJob.fulfilled, (state, action) => {
             state.loading = false;
-            state.jobs = state.jobs.filter((job) => job.id !== action.payload);
+            state.jobs = state.jobs.filter((job) => job._id !== action.payload);
             if (state.selectedJobId === action.payload) {
-                state.selectedJobId = state.jobs.length > 0 ? state.jobs[0].id : null;
+                state.selectedJobId = state.jobs.length > 0 ? state.jobs[0]._id : null;
             }
         });
-        builder.addCase(deleteJob.rejected, (state, action) => {
-            state.loading = false;
-            state.error = action.payload as string;
-        });
+        builder.addCase(deleteJob.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; });
     },
 });
 
