@@ -18,6 +18,8 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '');
 const handleGoogleLogin = async () => {
   // Ping the backend to wake it up before redirecting to Google
   try { await fetch(`${BASE_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch {}
+  // Wait 2 seconds to ensure backend is fully awake before redirect
+  await new Promise(resolve => setTimeout(resolve, 2000));
   window.location.href = `${BACKEND_URL}/api/auth/google`;
 };
 
