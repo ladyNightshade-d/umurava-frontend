@@ -68,7 +68,7 @@ const CreateJob = () => {
       toast.success("Job created!");
       router.push("/dashboard");
     } catch (err: any) {
-      toast.error(err || "Failed to create job");
+      toast.error(typeof err === "string" ? err : err?.message || "Failed to create job");
     }
   };
 
@@ -121,7 +121,7 @@ const CreateJob = () => {
                 <CardTitle className="text-lg">Job Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Job Title</Label>
                     <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Senior Full-Stack Engineer" required />
@@ -135,7 +135,7 @@ const CreateJob = () => {
                   <Label>Job Description</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the role, responsibilities, and expectations..." rows={4} required />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Required Skills (comma-separated)</Label>
                     <Input value={form.required_skills} onChange={(e) => setForm({ ...form, required_skills: e.target.value })} placeholder="React, TypeScript, Node.js" required />

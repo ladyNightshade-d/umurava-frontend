@@ -15,6 +15,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeft,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import ThemeToggle from "@/src/components/ThemeToggle";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/jobs/new", icon: Briefcase, label: "Create Job" },
   { to: "/candidates", icon: Users, label: "Candidates" },
   { to: "/results", icon: BarChart3, label: "Results" },
+  { to: "/profile", icon: UserCircle, label: "Profile" },
 ];
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
@@ -236,7 +238,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         )}
 
-        <main className="flex-1 px-6 py-6 overflow-auto">{children}</main>
+        <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 overflow-auto">{children}</main>
       </div>
     </div>
   );

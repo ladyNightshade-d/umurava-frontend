@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import DeleteJobDialog from "@/src/components/DeleteJobDialog";
 import { toast } from "sonner";
+import { apiFetch } from "@/src/lib/apiFetch";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -83,9 +84,10 @@ const Dashboard = () => {
         let totalCandidates = 0;
         let totalScreenings = 0;
         await Promise.all(jobIds.map(async (jobId: string) => {
-          const res = await fetch(`${BASE_URL}/jobs/${jobId}/applicants`, {
+          const res = await apiFetch(`${BASE_URL}/jobs/${jobId}/applicants`, {
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (!res.ok) return;
           const data = await res.json();
           totalCandidates += data.total || 0;
           totalScreenings += (data.data || []).filter((a: any) => a.status === 'screened').length;
@@ -93,6 +95,7 @@ const Dashboard = () => {
         setStats({ jobs: jobs.length, candidates: totalCandidates, screenings: totalScreenings });
       } catch (err) {
         setStats(s => ({ ...s, jobs: jobs.length }));
+        // silently fail — stats are non-critical, don't interrupt the user
       } finally {
         setStatsLoading(false);
       }
@@ -102,9 +105,14 @@ const Dashboard = () => {
 
   const handleDeleteJob = async () => {
     if (!deleteTarget || !user) return;
-    await dispatch(deleteJob({ jobId: deleteTarget.id, userId: user.id }));
-    toast.success(`"${deleteTarget.title}" has been deleted.`);
-    setDeleteTarget(null);
+    try {
+      await dispatch(deleteJob({ jobId: deleteTarget.id, userId: user.id })).unwrap();
+      toast.success(`"${deleteTarget.title}" has been deleted.`);
+    } catch (err: any) {
+      toast.error(typeof err === "string" ? err : err?.message || "Failed to delete job");
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const recentJobs = jobs.slice(0, 5);
@@ -178,7 +186,7 @@ const Dashboard = () => {
                 <div className="divide-y divide-silver/60">
                   {recentJobs.map((job: any) => (
                     <div key={job._id} className="flex items-center justify-between py-3 group">
-                      <Link href={`/candidates?job=${job._id}`} className="flex-1 min-w-0">
+                      <Link href={`/jobs/${job._id}`} className="flex-1 min-w-0">
                         <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">{job.title}</p>
                         <p className="text-xs text-muted-foreground">{job.department}</p>
                       </Link>
@@ -189,7 +197,7 @@ const Dashboard = () => {
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        <Link href={`/candidates?job=${job._id}`}>
+                        <Link href={`/jobs/${job._id}`}>
                           <ArrowUpRight className="h-4 w-4 text-foreground/70 group-hover:text-primary transition-colors" />
                         </Link>
                       </div>
