@@ -6,7 +6,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useAppDispatch, useAppSelector } from "@/src/store";
 import { fetchJobs, setSelectedJob } from "@/src/store/jobsSlice";
 import { fetchCandidates } from "@/src/store/candidatesSlice";
-import { fetchResults, screenCandidates as screenCandidatesAction, setSortBy, setBiasMode, setWeights } from "@/src/store/resultsSlice";
+import { fetchResults, screenCandidates as screenCandidatesAction, setSortBy, setBiasMode, setWeights, ScreeningResult } from "@/src/store/resultsSlice";
 import DashboardLayout from "@/src/components/DashboardLayout";
 import ScoreRing from "@/src/components/ScoreRing";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
@@ -20,20 +20,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/src/componen
 import { Loader2, Shield, Brain, AlertTriangle, CheckCircle2, MessageSquare, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-interface ScreeningResult {
-    id: string;
-    _id: string;
-    candidate_id: string;
-    job_id: string;
-    final_score: number;
-    strengths: string[];
-    gaps: string[];
-    culture_fit: string;
-    skill_tags: string[];
-    interview_questions: string[];
-    recommendation: string;
-    candidate?: any;
-}
 
 const getCultureBadge = (fit: string) => {
     const lower = fit?.toLowerCase() || "";
