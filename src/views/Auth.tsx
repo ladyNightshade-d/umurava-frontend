@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src
 import { Brain, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/src/lib/apiFetch";
-import { apiFetch } from "@/src/lib/apiFetch";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
