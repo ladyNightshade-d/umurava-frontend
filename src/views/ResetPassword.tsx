@@ -9,7 +9,7 @@ import { Label } from "@/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Brain, Loader2, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch } from "@/src/lib/apiFetch";
+import { apiFetch, sanitizeError } from "@/src/lib/apiFetch";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -38,8 +38,8 @@ const ResetPassword = () => {
       toast.error("Passwords don't match.");
       return;
     }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -52,8 +52,8 @@ const ResetPassword = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Reset failed");
       setDone(true);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(sanitizeError(error, "Password reset failed. The link may have expired."));
     } finally {
       setLoading(false);
     }

@@ -8,7 +8,7 @@ import { Label } from "@/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Brain, Loader2, ArrowLeft, MailCheck } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch } from "@/src/lib/apiFetch";
+import { apiFetch, sanitizeError } from "@/src/lib/apiFetch";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -29,8 +29,8 @@ const ForgotPassword = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Something went wrong");
       setSent(true);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      toast.error(sanitizeError(error, "Unable to send reset link. Please try again."));
     } finally {
       setLoading(false);
     }

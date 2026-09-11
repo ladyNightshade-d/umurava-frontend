@@ -1,41 +1,30 @@
-'use client';
-
-import { Provider } from 'react-redux';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from '@/src/contexts/AuthContext';
-import { store } from '@/src/store';
-import { Toaster } from '@/src/components/ui/toaster';
-import { Toaster as Sonner } from '@/src/components/ui/sonner';
-import { TooltipProvider } from '@/src/components/ui/tooltip';
+// M-9: Root layout is now a SERVER component.
+// Client-only providers (Redux, React Query, AuthProvider) are in ClientProviders.tsx.
+// This enables SSR, server-side auth checks, and proper Next.js App Router patterns.
+import type { Metadata } from 'next';
+import ClientProviders from '@/src/components/ClientProviders';
 import '@/src/index.css';
 
-const queryClient = new QueryClient();
+export const metadata: Metadata = {
+  title: 'HireWise AI - AI-Powered Recruitment Platform',
+  description: 'AI-powered recruitment platform for intelligent candidate screening',
+};
 
 export default function RootLayout({
-    children,
+  children,
 }: {
-    children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-    return (
-        <html lang="en">
-            <head>
-                <title>HireWise - AI-Powered Recruitment Platform</title>
-                <meta name="description" content="AI-powered recruitment platform for intelligent candidate screening" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-            </head>
-            <body className="min-h-screen bg-background font-sans antialiased">
-                <Provider store={store}>
-                    <QueryClientProvider client={queryClient}>
-                        <AuthProvider>
-                            <TooltipProvider>
-                                {children}
-                                <Toaster />
-                                <Sonner />
-                            </TooltipProvider>
-                        </AuthProvider>
-                    </QueryClientProvider>
-                </Provider>
-            </body>
-        </html>
-    );
+  return (
+    <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body className="min-h-screen bg-background font-sans antialiased">
+        <ClientProviders>
+          {children}
+        </ClientProviders>
+      </body>
+    </html>
+  );
 }

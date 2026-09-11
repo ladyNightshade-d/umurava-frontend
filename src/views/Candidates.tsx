@@ -20,17 +20,34 @@ import { toast } from "sonner";
 
 const PAGE_SIZE = 10;
 
+// H-6: allowed MIME types for CSV upload
+const ALLOWED_CSV_TYPES = [
+  'text/csv',
+  'application/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain', // some browsers report CSV as text/plain
+];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+// L-2: sanitize CSV cell values to prevent formula injection
+const sanitizeCSVCell = (value: string): string => {
+  const str = String(value);
+  // Prefix dangerous formula starters with a single quote
+  return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+};
+
 const exportToCSV = (candidates: any[], jobTitle: string) => {
   const headers = ["Name", "Email", "Skills", "Status", "Score", "Strengths", "Gaps", "Recommendation"];
   const rows = candidates.map(c => [
-    c.name || "",
-    c.email || "",
-    (c.skills || []).join("; "),
-    c.status || "",
-    c.score ?? "",
-    (c.strengths || []).join("; "),
-    (c.gaps || []).join("; "),
-    c.recommendation || "",
+    sanitizeCSVCell(c.name || ""),
+    sanitizeCSVCell(c.email || ""),
+    sanitizeCSVCell((c.skills || []).join("; ")),
+    sanitizeCSVCell(c.status || ""),
+    sanitizeCSVCell(String(c.score ?? "")),
+    sanitizeCSVCell((c.strengths || []).join("; ")),
+    sanitizeCSVCell((c.gaps || []).join("; ")),
+    sanitizeCSVCell(c.recommendation || ""),
   ]);
   const csvContent = [headers, ...rows]
     .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
@@ -39,7 +56,9 @@ const exportToCSV = (candidates: any[], jobTitle: string) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `candidates-${jobTitle.toLowerCase().replace(/\s+/g, "-") || "export"}.csv`;
+  // H-1: sanitize filename — no path traversal
+  const safeTitle = (jobTitle || "export").toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 50);
+  a.download = `candidates-${safeTitle}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };
@@ -119,12 +138,27 @@ const Candidates = () => {
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !selectedJobId) return;
+
+    // H-6: validate file type and size before uploading
+    if (!ALLOWED_CSV_TYPES.includes(file.type) && !file.name.match(/\.(csv|xlsx)$/i)) {
+      toast.error("Only CSV or Excel files are allowed.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File is too large. Maximum size is 5 MB.");
+      e.target.value = "";
+      return;
+    }
+
     try {
       await dispatch(uploadCandidatesCSV({ jobId: selectedJobId, file })).unwrap();
       toast.success("Candidates uploaded!");
       dispatch(fetchCandidates({ userId: user.id, jobId: selectedJobId }));
     } catch (err: any) {
       toast.error(typeof err === "string" ? err : err?.message || "Failed to upload CSV");
+    } finally {
+      e.target.value = "";
     }
   };
 
