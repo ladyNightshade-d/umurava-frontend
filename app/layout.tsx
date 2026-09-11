@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: 'HireWise AI - AI-Powered Recruitment Platform',
   description: 'AI-powered recruitment platform for intelligent candidate screening',
   icons: {
-    icon: '/favicon.png',
-    shortcut: '/favicon.png',
-    apple: '/favicon.png',
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
   },
 };
 
