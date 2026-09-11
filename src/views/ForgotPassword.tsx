@@ -23,6 +23,13 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Wake up Render's free tier server before the actual request
+      await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => {});
+
       const res = await apiFetch(`${BASE_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
