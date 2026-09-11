@@ -68,6 +68,61 @@ Login existing user
 }
 ```
 
+### POST /auth/forgot-password
+Request password reset OTP
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "OTP sent to your email",
+  "expiresIn": "10 minutes"
+}
+```
+
+**Notes:**
+- Generate a random 6-digit OTP
+- Store OTP in database with email and expiration time (10 minutes from now)
+- Send OTP to user's email
+- OTP should be numeric only (e.g., "123456")
+
+### POST /auth/reset-password
+Reset password using OTP
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "otp": "123456",
+  "password": "newpassword123"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+**Error Responses:**
+- 400: Invalid or expired OTP
+- 404: Email not found
+- 400: Password validation failed
+
+**Notes:**
+- Verify OTP matches the one stored for the email
+- Check OTP hasn't expired (10 minute window)
+- Hash new password before storing
+- Delete/invalidate OTP after successful reset
+- OTP can only be used once
+
 ---
 
 ## 2. Recruiter - Job Management

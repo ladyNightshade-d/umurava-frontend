@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -13,6 +14,7 @@ import { apiFetch, sanitizeError } from "@/src/lib/apiFetch";
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const ForgotPassword = () => {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -28,9 +30,16 @@ const ForgotPassword = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Something went wrong");
+      
       setSent(true);
+      toast.success("OTP sent successfully!");
+      
+      // Redirect to reset password page after 2 seconds
+      setTimeout(() => {
+        router.push(`/reset-password?email=${encodeURIComponent(email)}`);
+      }, 2000);
     } catch (error: unknown) {
-      toast.error(sanitizeError(error, "Unable to send reset link. Please try again."));
+      toast.error(sanitizeError(error, "Unable to send OTP. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -48,7 +57,7 @@ const ForgotPassword = () => {
           </div>
           <CardTitle>Forgot password?</CardTitle>
           <CardDescription>
-            Enter your email and we'll send you a reset link
+            Enter your email and we'll send you a 6-digit OTP
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -61,9 +70,10 @@ const ForgotPassword = () => {
               </div>
               <p className="font-semibold text-foreground">Check your inbox</p>
               <p className="text-sm text-muted-foreground">
-                If <span className="font-medium text-foreground">{email}</span> is registered, you'll receive a reset link shortly. Check your spam folder too.
+                We've sent a 6-digit OTP to <span className="font-medium text-foreground">{email}</span>. Check your spam folder if you don't see it.
               </p>
-              <p className="text-xs text-muted-foreground">The link expires in 1 hour.</p>
+              <p className="text-xs text-muted-foreground">The OTP expires in 10 minutes.</p>
+              <p className="text-xs text-muted-foreground mt-2">Redirecting to verification page...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -77,10 +87,13 @@ const ForgotPassword = () => {
                   placeholder="you@company.com"
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the email you used to register your account
+                </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Send reset link
+                Send OTP
               </Button>
             </form>
           )}
